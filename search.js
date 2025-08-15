@@ -1,24 +1,8 @@
-const fetch = require('node-fetch');
-
-async function getSuggest(query) {
-  try {
-    const url = `https://suggestqueries.google.com/complete/search?client=firefox&hl=ja&ie=utf-8&oe=utf-8&q=${encodeURIComponent(query)}`;
-    const res = await fetch(url);
-    const text = await res.text();
-
-    // JSON.parse を使って手動で解析
-    const data = JSON.parse(text);
-
-    return data[1];
-  } catch (error) {
-    console.error('suggest error', error);
-    return [];
-  }
-}
-
 const { Innertube } = require('youtubei.js');
-let client = null;
+const fetch = require('node-fetch'); // searchVideosには不要ですが、getSuggestと統合する場合に必要
 
+// youtubei.jsクライアントの初期化
+let client = null;
 async function initClient() {
   if (!client) {
     client = await Innertube.create({ lang: 'ja', location: 'JP' });
@@ -27,6 +11,7 @@ async function initClient() {
 
 let previousResult = null;
 
+// YouTube動画を検索するロジック
 async function searchVideos(query, pageToken = null) {
   await initClient(); 
 
@@ -57,7 +42,17 @@ async function searchVideos(query, pageToken = null) {
     nextPageToken: videos?.length ? 'hasMore' : null
   };
 }
-module.exports = {
-  searchVideos,
-  getSuggest
+
+// Vercelサーバーレス関数のハンドラ
+// HTTPリクエストを受け付けて、適切なロジックを呼び出す
+module.exports = async (req, res) => {
+  try {
+    const query = req.query.q;
+    const pageToken = req.query.nextPageToken;
+    const result = await searchVideos(query, pageToken);
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Search API error:', error);
+    res.status(500).json({ error: 'Failed to fetch search results.' });
+  }
 };
