@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>動画再生 | YouTubeダウンローダー</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #121212;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 800px;
+      width: 100%;
+      background-color: #1e1e1e;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 0 10px #000;
+    }
+
+    h1 {
+      font-size: 1.8em;
+      margin-bottom: 10px;
+    }
+
+    .channel-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .channel-info img {
+      border-radius: 50%;
+      width: 48px;
+      height: 48px;
+    }
+
+    video {
+      width: 100%;
+      max-width: 100%;
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+
+    .controls {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .controls button, select {
+      padding: 10px 15px;
+      font-size: 1rem;
+      border: none;
+      border-radius: 5px;
+      background: #333;
+      color: #fff;
+      cursor: pointer;
+    }
+
+    .controls button:hover, select:hover {
+      background-color: #555;
+    }
+
+    .description {
+      margin-top: 10px;
+      font-size: 0.95em;
+      color: #ccc;
+    }
+
+    .status {
+      margin-bottom: 15px;
+      color: #aaa;
+      font-size: 0.9em;
+    }
+    
+    
+    .search-container {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  margin: 20px auto;
+}
+
+#searchInput {
+  width: 100%;
+  padding: 10px;
+  font-size: 1rem;
+  border-radius: 4px;
+  border: none;
+  outline: none;
+  background-color: #2a2a2a;
+  color: #fff;
+}
+
+.suggestion-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background-color: #1e1e1e;
+  border: 1px solid #333;
+  border-top: none;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  z-index: 1000;
+  max-height: 200px;
+  overflow-y: auto;
+  display: none;
+}
+
+.suggestion-list li {
+  padding: 10px;
+  cursor: pointer;
+  color: #ccc;
+}
+
+.suggestion-list li:hover {
+  background-color: #333;
+  color: #fff;
+}
+  </style>
+</head>
+<body>
+<div class="search-container">
+  <input
+    type="text"
+    id="searchInput"
+    placeholder="検索..."
+    autocomplete="off"
+  />
+  <ul id="suggestions" class="suggestion-list"></ul>
+</div>
+
+<script>
+  const input = document.getElementById('searchInput');
+  const suggestionsBox = document.getElementById('suggestions');
+
+  input?.addEventListener('focus', () => fetchSuggestions(input.value));
+  input?.addEventListener('input', debounce(() => fetchSuggestions(input.value), 300));
+  input?.addEventListener('blur', () => setTimeout(() => { suggestionsBox.style.display = 'none'; }, 100));
+
+  input?.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const query = input.value.trim();
+      if (query) {
+        window.location.href = `/search.html?q=${encodeURIComponent(query)}`;
+      }
+    }
+  });
+
+  async function fetchSuggestions(q) {
+    if (!q) {
+      suggestionsBox.style.display = 'none';
+      return;
+    }
+    try {
+      const res = await fetch(`/api/suggest?q=${encodeURIComponent(q)}`);
+      const arr = await res.json();
+      if (arr.length) {
+        suggestionsBox.innerHTML = arr
+          .map(s => `<li onclick="selectSuggestion('${s}')">${s}</li>`)
+          .join('');
+        suggestionsBox.style.display = 'block';
+      } else {
+        suggestionsBox.style.display = 'none';
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  function debounce(fn, delay = 300) {
+    let timer;
+    return function (...args) {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn.apply(this, args), delay);
+    };
+  }
+
+  function selectSuggestion(s) {
+    input.value = s;
+    suggestionsBox.style.display = 'none';
+    window.location.href = `/search.html?q=${encodeURIComponent(s)}`;
+  }
+</script>
+  <div class="container">
+    <div class="status" id="status">🔄 読み込み中...</div>
+    <h1 id="videoTitle">動画タイトル</h1>
+
+    <div class="channel-info">
+      <img id="channelImage" src="" alt="チャンネル画像" />
+      <div>
+        <div id="channelName">チャンネル名</div>
+        <div id="videoViews">👁️ 再生数</div>
+      </div>
+    </div>
+
+    <video id="video" controls></video>
+    <audio id="audio" hidden></audio>
+
+    <div class="controls">
+      <button onclick="playBoth()">▶️ 再生</button>
+      <button onclick="pauseBoth()">⏸️ 停止</button>
+
+      <label>
+        🎚 画質:
+        <select id="qualitySelect" onchange="changeQuality(this.value)">
+          <option>読み込み中...</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="description" id="videoDes">説明文</div>
+    <h2>💬 コメント</h2>
+<ul id="commentList" style="list-style: none; padding: 0;"></ul>
+  </div>
+
+  <script>
+    const videoEl = document.getElementById('video');
+    const audioEl = document.getElementById('audio');
+    const statusEl = document.getElementById('status');
+    const qualitySelect = document.getElementById('qualitySelect');
+
+    let streamList = []; // 画質選択用
+
+    const params = new URLSearchParams(window.location.search);
+    const videoId = params.get('videoId');
+
+    if (!videoId) {
+      statusEl.textContent = "❌ videoId が指定されていません。";
+      throw new Error("videoIdが必要です");
+    }
+
+    async function fetchVideoData() {
+      try {
+        const res = await fetch(`/api/video/${videoId}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+  
+        document.getElementById('videoTitle').textContent = data.videoTitle;
+        document.getElementById('channelName').textContent = data.channelName;
+        document.getElementById('videoViews').textContent = `👁️ ${Number(data.videoViews).toLocaleString()} 回視聴`;
+        document.getElementById('channelImage').src = data.channelImage;
+        document.getElementById('videoDes').innerHTML = data.videoDes;
+
+        // 音声セット
+        audioEl.src = data.audioUrl;
+
+        // 画質選択肢を設定
+        streamList = data.streamUrls || [];
+        if (streamList.length > 0) {
+          qualitySelect.innerHTML = streamList.map((s, i) => 
+            `<option value="${i}">${s.resolution}</option>`
+          ).join('');
+          changeQuality(0); // 最初の画質で再生
+        } else {
+          videoEl.src = data.stream_url;
+          qualitySelect.innerHTML = `<option value="none">デフォルトのみ</option>`;
+        }
+
+      // コメント表示
+const commentList = document.getElementById('commentList');
+if (data.comments && data.comments.length > 0) {
+  commentList.innerHTML = data.comments.map(c => `
+    <li style="margin-bottom: 12px; border-bottom: 1px solid #333; padding-bottom: 10px;">
+      <img src="${c.authorPhoto}" width="32" height="32" style="border-radius:50%; vertical-align: middle; margin-right: 10px;">
+      <strong>${c.author}</strong><br>
+      <span>${c.text}</span>
+    </li>
+  `).join('');
+} else {
+  commentList.innerHTML = `<li>コメントは見つかりませんでした。</li>`;
+}
+
+        statusEl.textContent = "✅ 準備完了";
+        syncPlay();
+
+      } catch (err) {
+        statusEl.textContent = "❌ エラー: " + err.message;
+      }
+    }
+
+    function changeQuality(index) {
+      const pos = videoEl.currentTime;
+      const wasPlaying = !videoEl.paused;
+      const stream = streamList[index];
+      if (stream && stream.url) {
+        videoEl.src = stream.url;
+        videoEl.currentTime = pos;
+        audioEl.currentTime = pos;
+        if (wasPlaying) {
+          playBoth();
+        }
+      }
+    }
+
+    function playBoth() {
+      videoEl.play();
+      audioEl.play();
+    }
+
+    function pauseBoth() {
+      videoEl.pause();
+      audioEl.pause();
+    }
+
+    function syncPlay() {
+      videoEl.addEventListener('play', () => {
+        if (audioEl.paused) audioEl.play();
+      });
+
+      videoEl.addEventListener('pause', () => {
+        if (!audioEl.paused) audioEl.pause();
+      });
+
+      videoEl.addEventListener('seeking', () => {
+        audioEl.currentTime = videoEl.currentTime;
+      });
+
+      videoEl.addEventListener('timeupdate', () => {
+        const diff = Math.abs(videoEl.currentTime - audioEl.currentTime);
+        if (diff > 0.3) {
+          audioEl.currentTime = videoEl.currentTime;
+        }
+      });
+    }
+
+    fetchVideoData();
+  </script>
+</body>
+</html>
