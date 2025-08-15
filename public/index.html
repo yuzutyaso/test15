@@ -243,61 +243,7 @@
   }
 </script>
 
-  <div class="container">
-    <h1>🎬 YouTube ダウンローダー</h1>
-    <p>動画IDを入力してください（例: <code>dQw4w9WgXcQ</code>）</p>
-    <input type="text" id="videoId" placeholder="YouTubeのVideo ID" />
-    <button onclick="fetchVideo()">取得</button>
+  
 
-    <div class="video-info" id="videoInfo"></div>
-  </div>
-
-  <script>
-    async function fetchVideo() {
-      const id = document.getElementById('videoId').value.trim();
-      if (!id) return alert('Video ID を入力してください');
-
-      const infoDiv = document.getElementById('videoInfo');
-      infoDiv.innerHTML = '🔄 データ取得中...';
-
-      try {
-        const res = await fetch(`/api/video/${id}`);
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-
-        infoDiv.innerHTML = `
-          <img src="${data.channelImage}" alt="チャンネル画像" />
-          <div>
-            <h2>${data.videoTitle}</h2>
-            <p>👤 ${data.channelName}</p>
-            <p>👁️ ${Number(data.videoViews).toLocaleString()} 回視聴</p>
-            <p>${data.videoDes || ''}</p>
-          </div>
-
-          <div class="stream-links">
-            <h3>💾 ダウンロードリンク:</h3>
-            <a href="${data.stream_url}" download>🎥 通常動画 (MP4)</a>
-            <a href="${data.audioUrl}" download>🎧 音声 (M4A)</a>
-            ${
-              (data.streamUrls || []).map(s => 
-                `<a href="${s.url}" download>📺 ${s.resolution} (WebM)</a>`
-              ).join('')
-            }
-          </div>
-
-          <div class="play-button">
-            <a href="video.html?videoId=${id}">
-              <button>▶️ 再生ページへ移動</button>
-            </a>
-          </div>
-        `;
-        currentVideoUrl = data.streamUrls?.[0]?.url || data.stream_url;
-        currentAudioUrl = data.audioUrl;
-
-      } catch (err) {
-        infoDiv.innerHTML = `<p style="color:red">❌ エラー: ${err.message}</p>`;
-      }
-    }
-  </script>
 </body>
 </html>
